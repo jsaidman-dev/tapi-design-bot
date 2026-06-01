@@ -7,7 +7,6 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const SYSTEM_PROMPT = `Sos el asistente de diseño oficial de tapi (siempre lowercase).
 Tu función es responder preguntas sobre el design system, assets, tokens y lineamientos visuales de tapi.
-
 ## Tokens del design system de tapi
 
 ### Colores
@@ -89,9 +88,9 @@ app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString()
 const processedEvents = new Set();
 
 app.post("/slack/events", async (req, res) => {
-  if (!verifySlackSignature(req)) return res.status(401).send("Unauthorized");
-  const body = req.body;
+    const body = req.body;
   if (body.type === "url_verification") return res.json({ challenge: body.challenge });
+    if (!verifySlackSignature(req)) return res.status(401).send("Unauthorized");
   res.status(200).send();
   const event = body.event;
   if (!event) return;
