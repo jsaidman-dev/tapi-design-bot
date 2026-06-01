@@ -118,7 +118,6 @@ Personalidad: cercano pero profesional, directo, empoderador, confiable.
 Ejemplos:
   NO: "Estimado usuario, le informamos que..." | SI: "Te avisamos que..."
   NO: "plataforma lider en pagos digitales" | SI: "Paga cualquier servicio en segundos."
-  NO: "No te pierdas esta increible oportunidad!" | SI: "Ya podes pagar con debito automatico."
 
 ---
 
@@ -126,7 +125,7 @@ GENERADOR DE BRIEFS:
 Cuando alguien describa un pedido de diseno en lenguaje natural, genera automaticamente un brief completo con este formato:
 
 ---
-BRIEF DE DISENO — [NOMBRE DEL PEDIDO]
+BRIEF DE DISENO - [NOMBRE DEL PEDIDO]
 Nombre: [nombre descriptivo]
 Solicitante: [quien lo pidio, si se sabe]
 Deadline sugerido: [estimado segun urgencia transmitida]
@@ -207,6 +206,118 @@ async function slackPostMessage(channel, text, thread_ts) {
   }, body);
 }
 
+async function publishHomeTab(userId) {
+  const view = {
+    type: "home",
+    blocks: [
+      {
+        type: "header",
+        text: { type: "plain_text", text: "Hola! Soy el asistente de diseño de TAPI 👋", emoji: true }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "Estoy acá para ayudarte con todo lo relacionado al diseño y la marca de TAPI. Escribime directamente en el chat o mencioname en cualquier canal con *@tapi-design*."
+        }
+      },
+      { type: "divider" },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: "*🎨 ¿Qué puedo hacer por vos?*" }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*📋 Crear un pedido de diseño*
+Describime lo que necesitás y armo el brief completo listo para pegar en Notion.
+_Ejemplo: "Necesito un banner para LinkedIn sobre el lanzamiento de pagos en México"_"
+        }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*✍️ Generar copy*
+Pedime texto para cualquier pieza y te doy 2-3 variantes con el tono de voz de TAPI.
+_Ejemplo: "Escribime el copy para un post de Instagram anunciando débito automático"_"
+        }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*🎨 Colores y tipografía*
+Consultame cualquier token del design system: colores en HEX/RGB/HSL, tipografías, tamaños, espaciados.
+_Ejemplo: "¿Cuál es el código RGB del morado principal?"_"
+        }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*📐 Tamaños de piezas*
+Te digo las dimensiones exactas para cualquier formato.
+_Ejemplo: "¿Qué tamaño tiene un post de Instagram?"_"
+        }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*📥 Materiales descargables*
+Banners, fondos para Meet, logos, tipografía Objectivity, firma de mail.
+_Ejemplo: "¿Dónde descargo un fondo para Google Meet?"_"
+        }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*⚡ SLA y flujo de trabajo*
+Consultame cuánto tarda un pedido, cómo hacer un brief o cuál es el estado de un diseño.
+_Ejemplo: "¿Cuánto tarda un pedido urgente?"_"
+        }
+      },
+      { type: "divider" },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: "*🔗 Links rápidos*" }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "• <https://www.notion.so/taparg/9a0c4f4ad2b0469eb94830f4066c63ab|📋 Board de Pedidos a Marketing>
+• <https://www.notion.so/taparg/Materiales-descargables-de-marca-18036faa2e214d6eb29e79f57d0c3cce|📥 Materiales descargables de marca>
+• <https://www.notion.so/taparg/Templates-Figma-3148feb1ff1d80cf81b2d9c493870e42|🎨 Templates Figma>
+• <https://www.notion.so/taparg/Manual-de-marca-c438b6ded9024c3485e7e574f60ffc0b|📔 Manual de marca>"
+        }
+      },
+      { type: "divider" },
+      {
+        type: "context",
+        elements: [
+          { type: "mrkdwn", text: "Escribime en el chat de mensajes directo 💬" }
+        ]
+      }
+    ]
+  };
+
+  const body = JSON.stringify({ user_id: userId, view });
+  await httpsRequest({
+    hostname: "slack.com",
+    path: "/api/views.publish",
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body),
+    },
+  }, body);
+}
+
 function verifySlackSignature(req) {
   const signingSecret = process.env.SLACK_SIGNING_SECRET;
   const timestamp = req.headers["x-slack-request-timestamp"];
@@ -227,15 +338,25 @@ app.post("/slack/events", async (req, res) => {
   if (body.type === "url_verification") return res.json({ challenge: body.challenge });
   if (!verifySlackSignature(req)) return res.status(401).send("Unauthorized");
   res.status(200).send();
+
   const event = body.event;
   if (!event) return;
+
   const eventId = body.event_id || `${event.type}-${event.ts}`;
   if (processedEvents.has(eventId)) return;
   processedEvents.add(eventId);
   if (processedEvents.size > 500) processedEvents.delete(processedEvents.values().next().value);
+
+  // App Home abierto: publicar bienvenida
+  if (event.type === "app_home_opened" && event.tab === "home") {
+    try { await publishHomeTab(event.user); } catch (err) { console.error("Home tab error:", err.message); }
+    return;
+  }
+
   const isDirectMessage = event.channel_type === "im";
   const isMention = event.type === "app_mention";
   const isBotMessage = event.bot_id || event.subtype === "bot_message";
+
   if (!isBotMessage && (isDirectMessage || isMention)) {
     const userText = (event.text || "").replace(/<@[A-Z0-9]+>/g, "").trim();
     if (!userText) return;
@@ -249,7 +370,7 @@ app.post("/slack/events", async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => res.send("tapi design bot v3 — knowledge base completa"));
+app.get("/", (req, res) => res.send("tapi design bot v4 — home tab + knowledge base completa"));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
