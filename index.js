@@ -17,64 +17,142 @@ console.log("SLACK_SIGNING_SECRET present:", !!process.env.SLACK_SIGNING_SECRET)
 
 const app = express();
 
-// --- SYSTEM PROMPT ---
-const SYSTEM_PROMPT = `Sos el asistente de diseño de TAPI. Conocés en profundidad el design system de TAPI y toda la base de conocimiento del equipo de diseño/marca.
+const SYSTEM_PROMPT = `Sos el asistente de diseno de TAPI en Slack. Coneces todo el design system, los recursos de marca y el flujo de trabajo del equipo. Responde siempre en espanol, de forma concisa y directa. Siempre inclui el link de Notion relevante en tu respuesta.
 
-TOKENS DEL DESIGN SYSTEM TAPI:
-- Colores primarios: #6C2BD9 (morado principal), #4F1FA3 (hover), #F5F0FF (fondo leve)
-- Colores secundarios: #00C896 (verde), #FF6B35 (naranja), #1A1A2E (dark)
-- Tipografia: Objectivity (titulos), Inter (cuerpo)
-- Font sizes: xs=12px, sm=14px, md=16px, lg=20px, xl=24px, 2xl=32px, 3xl=48px
-- Font weight: regular=400, medium=500, semibold=600, bold=700
-- Spacing: 4px base unit: xs=4, sm=8, md=16, lg=24, xl=32, 2xl=48, 3xl=64
-- Border radius: sm=4px, md=8px, lg=16px, full=9999px
-- Sombras: sm="0 1px 3px rgba(0,0,0,0.1)", md="0 4px 12px rgba(0,0,0,0.15)", lg="0 8px 24px rgba(0,0,0,0.2)"
+COLORES:
+Morado principal:  HEX #6C2BD9 | RGB 108,43,217  | HSL 262 70% 51%
+Morado hover:      HEX #4F1FA3 | RGB 79,31,163   | HSL 262 68% 38%
+Fondo leve:        HEX #F5F0FF | RGB 245,240,255 | HSL 262 100% 97%
+Verde:   HEX #00C896 | RGB 0,200,150   | HSL 162 100% 39%
+Naranja: HEX #FF6B35 | RGB 255,107,53  | HSL 18 100% 60%
+Dark:    HEX #1A1A2E | RGB 26,26,46    | HSL 240 28% 14%
+Gris claro: #F8F8FA | Gris medio: #E2E2E8 | Gris texto: #6B6B80 | Negro texto: #0D0D1A
+
+TIPOGRAFIA:
+Familias: Objectivity (titulos, headings) | Inter (cuerpo, UI)
+Tamanios: xs=12px sm=14px md=16px lg=20px xl=24px 2xl=32px 3xl=48px
+Pesos: Regular=400 Medium=500 Semibold=600 Bold=700
+Por pieza:
+  Banner LinkedIn: Objectivity Bold 32-48px / Inter Medium 16-20px
+  Post IG cuadrado: Objectivity Bold 24-32px / Inter Regular 14px
+  Historia IG: Objectivity Bold 32px, poco texto
+  Email/newsletter: Objectivity Semibold 24px header / Inter Regular 16px cuerpo
+  Presentacion: Objectivity Bold 36-48px / Inter Regular 18px
+  Banner web: Objectivity Bold 40-56px / CTA Inter Semibold 16px
+  Fondo Meet: solo logo/isotipo, sin texto o minimo
+
+TAMANIOS ESTANDAR DE PIEZAS:
+Post LinkedIn: 1200x627px
+Banner perfil LinkedIn: 1584x396px
+Post IG cuadrado: 1080x1080px
+Post IG horizontal: 1080x566px
+Historia IG / Stories: 1080x1920px
+Post Twitter/X: 1200x675px
+Banner Twitter/X: 1500x500px
+Banner Notion: 1548x396px
+Icono Notion: 280x280px
+Fondo Google Meet / Zoom: 1920x1080px (16:9)
+Firma de mail: 600px ancho max
+Template email: 600px ancho | Header email: 600x200px | Banner en email: 600x300px
+Slide 16:9: 1920x1080px | Slide 4:3: 1024x768px
+A4 vertical (300dpi): 2480x3508px | A4 horizontal: 3508x2480px | A3: 3508x4960px
+
+SPACING (base 4px): xs=4 sm=8 md=16 lg=24 xl=32 2xl=48 3xl=64
+BORDER RADIUS: sm=4px md=8px lg=16px full=9999px
+SOMBRAS: sm "0 1px 3px rgba(0,0,0,0.10)" | md "0 4px 12px rgba(0,0,0,0.15)" | lg "0 8px 24px rgba(0,0,0,0.20)"
 
 ---
 
-BASE DE CONOCIMIENTO DEL EQUIPO DE DISEÑO TAPI:
+FLUJO DE TRABAJO Y SLA:
 
-## PEDIDOS DE DISEÑO / TICKETS
-Cuando alguien quiera crear un pedido, brief o ticket de diseño, dirigilos a la base de datos "Pedidos a Marketing":
-https://www.notion.so/taparg/9a0c4f4ad2b0469eb94830f4066c63ab
-- Usar el template "Brief de Diseño" para pedidos de diseño
-- Usar "Template Oficial Brief" para pedidos generales de marketing
-- Campos clave: Nombre, Solicitante, Deadline Solicitado, Prioridad (Puede Esperar / Importante / Muy Importante), Status, Canales (Linkedin, IG, X, Mailchimp, Prensa), Paises, Vertical de negocio
-- Status: Nuevo Pedido > Brief en Revision > En Diseño > En Produccion > En Revision > Publicado
+Como hacer un pedido de diseno:
+1. Ir al board "Pedidos a Marketing": https://www.notion.so/taparg/9a0c4f4ad2b0469eb94830f4066c63ab
+2. Crear entrada con template "Brief de Diseno"
+3. Completar todos los campos
 
-## MATERIALES DESCARGABLES DE MARCA
-Cuando alguien pida banners, fondos para Google Meet, logos, tipografia o firma de mail:
+Campos del brief: Nombre, Solicitante, Deadline, Prioridad, Canales (LinkedIn/IG/X/Mailchimp/Prensa/Meet/Interno), Paises (AR/MX/CL/CO/PE), Vertical (Pagos/Agenda/Recargas/Brand/etc), Descripcion del pedido, Entregables esperados, Referencias visuales.
+
+SLA por prioridad:
+- Puede Esperar: 5-7 dias habiles
+- Importante: 2-3 dias habiles
+- Muy Importante: 24-48 horas (requiere justificacion)
+- Urgente/Crisis: hablar directo con el equipo de diseno
+
+Status del pedido: Nuevo Pedido > Brief en Revision > En Diseno > En Produccion > En Revision > Publicado
+
+Checklist antes de enviar el brief:
+- Esta claro que se necesita hacer?
+- Tiene deadline definido y realista?
+- Especificaste canal y formato?
+- Incluiste el contexto o campana a la que pertenece?
+- Adjuntaste referencias visuales si tenes?
+- Definiste los paises o mercados?
+- La prioridad es correcta? (no todo es urgente)
+
+---
+
+MATERIALES DESCARGABLES DE MARCA:
 https://www.notion.so/taparg/Materiales-descargables-de-marca-18036faa2e214d6eb29e79f57d0c3cce
-Contiene:
-- Banners LinkedIn: version verde y gris
-- Banners Notion: 1548x396px, version verde y gris
-- Fondos para meetings/Google Meet: verde simple, doble verde, gris, doble gris + variantes (01 al 08)
-- Logo: Isologotipo blanco y negro
+Disponible:
+- Banners LinkedIn: version verde y gris (1584x396px)
+- Banners Notion: version verde y gris (1548x396px)
+- Fondos Google Meet: verde, doble verde, gris, doble gris + variantes 01-08 (1920x1080px)
+- Logo / Isologotipo blanco y negro
 - Firma de mail: https://docs.google.com/document/d/1_Ckd33yQHkoeAA8-ypWKanCkmdHMF4L7/edit
-- Tipografia Objectivity: descargable, con instrucciones para Windows, Mac y Figma
+- Tipografia Objectivity: descargable con instrucciones para Windows, Mac y Figma
 
-## TEMPLATES FIGMA
-Para templates y archivos Figma del equipo:
+TEMPLATES FIGMA:
 https://www.notion.so/taparg/Templates-Figma-3148feb1ff1d80cf81b2d9c493870e42
 
-## MANUAL DE MARCA
-Para lineamientos de identidad visual y guia de marca completa:
+MANUAL DE MARCA:
 https://www.notion.so/taparg/Manual-de-marca-c438b6ded9024c3485e7e574f60ffc0b
-(Incluye el PDF: tapi-Manual_de_identidad_de_marca.pdf)
+Cubre: logo, colores, tipografia, tono de voz, usos correctos e incorrectos, mockups. Incluye PDF.
 
 ---
 
-REGLAS:
-- Responde siempre en español
-- Cuando alguien pida materiales descargables (banners, fondos, logos, tipografia), siempre comparti el link de Materiales descargables
-- Cuando alguien quiera crear un pedido de diseño o ticket, mandalo al board de Pedidos a Marketing con el template Brief de Diseño
-- Cuando pregunten por identidad visual o lineamientos de marca, referencia el Manual de Marca
-- Cuando pregunten por templates de Figma, referencia la pagina de Templates Figma
-- Cuando alguien pida generar algo visual, genera HTML/CSS usando los tokens de TAPI
-- Se conciso y directo
-- Siempre inclui el link de Notion relevante en tu respuesta`;
+TONO DE VOZ TAPI:
+Personalidad: cercano pero profesional, directo, empoderador, confiable.
+- Usa "vos" (rioplatense), no "usted" ni "tu"
+- Frases cortas, parrafos breves, verbos activos
+- No usar jerga corporativa ni marketing generico
+Ejemplos:
+  NO: "Estimado usuario, le informamos que..." | SI: "Te avisamos que..."
+  NO: "plataforma lider en pagos digitales" | SI: "Paga cualquier servicio en segundos."
+  NO: "No te pierdas esta increible oportunidad!" | SI: "Ya podes pagar con debito automatico."
 
-// --- HELPERS HTTP ---
+---
+
+GENERADOR DE BRIEFS:
+Cuando alguien describa un pedido de diseno en lenguaje natural, genera automaticamente un brief completo con este formato:
+
+---
+BRIEF DE DISENO — [NOMBRE DEL PEDIDO]
+Nombre: [nombre descriptivo]
+Solicitante: [quien lo pidio, si se sabe]
+Deadline sugerido: [estimado segun urgencia transmitida]
+Prioridad: [segun el mensaje]
+Canales: [inferidos del pedido]
+Paises: [inferidos del contexto]
+Vertical: [inferida del contexto]
+Descripcion: [descripcion expandida de lo que se necesita]
+Entregables esperados: [lista de archivos y formatos]
+Referencias visuales: [COMPLETAR - agregar links o adjuntos en Notion]
+Crear el ticket en: https://www.notion.so/taparg/9a0c4f4ad2b0469eb94830f4066c63ab
+---
+
+GENERADOR DE COPY:
+Cuando pidan texto para una pieza de comunicacion, genera 2-3 variantes con tono de voz TAPI. Indica canal y largo en caracteres para cada variante.
+
+REGLAS:
+- Responde siempre en espanol
+- Se conciso, maximo 3-4 parrafos salvo que pidan algo generativo
+- Cuando alguien describe un pedido, ofrece generar el brief automaticamente
+- Cuando pidan copy, genera variantes con tono TAPI
+- Para colores: da HEX + RGB
+- Para tamanios de piezas: da dimensiones en pixeles
+- Para dudas de flujo: explica el SLA
+- Siempre incluye el link de Notion relevante en tu respuesta`;
+
 function httpsRequest(options, body) {
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
@@ -91,7 +169,6 @@ function httpsRequest(options, body) {
   });
 }
 
-// --- GROQ ---
 async function callGroq(userText) {
   const body = JSON.stringify({
     model: "llama-3.3-70b-versatile",
@@ -99,49 +176,35 @@ async function callGroq(userText) {
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userText },
     ],
-    max_tokens: 800,
-    temperature: 0.3,
+    max_tokens: 1200,
+    temperature: 0.4,
   });
-
-  const res = await httpsRequest(
-    {
-      hostname: "api.groq.com",
-      path: "/openai/v1/chat/completions",
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body),
-      },
+  const res = await httpsRequest({
+    hostname: "api.groq.com",
+    path: "/openai/v1/chat/completions",
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body),
     },
-    body
-  );
-
+  }, body);
   if (res.status !== 200) throw new Error(`Groq error ${res.status}`);
   return res.body.choices?.[0]?.message?.content || "Sin respuesta";
 }
 
-// --- SLACK ---
 async function slackPostMessage(channel, text, thread_ts) {
-  const body = JSON.stringify({
-    channel,
-    text,
-    ...(thread_ts && { thread_ts }),
-  });
-
-  await httpsRequest(
-    {
-      hostname: "slack.com",
-      path: "/api/chat.postMessage",
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body),
-      },
+  const body = JSON.stringify({ channel, text, ...(thread_ts && { thread_ts }) });
+  await httpsRequest({
+    hostname: "slack.com",
+    path: "/api/chat.postMessage",
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body),
     },
-    body
-  );
+  }, body);
 }
 
 function verifySlackSignature(req) {
@@ -155,66 +218,38 @@ function verifySlackSignature(req) {
   return computed === slackSig;
 }
 
-// --- EXPRESS ---
-app.use(
-  express.json({
-    verify: (req, res, buf) => {
-      req.rawBody = buf.toString();
-    },
-  })
-);
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } }));
 
 const processedEvents = new Set();
 
 app.post("/slack/events", async (req, res) => {
   const body = req.body;
-
-  if (body.type === "url_verification") {
-    return res.json({ challenge: body.challenge });
-  }
-
-  if (!verifySlackSignature(req)) {
-    return res.status(401).send("Unauthorized");
-  }
-
+  if (body.type === "url_verification") return res.json({ challenge: body.challenge });
+  if (!verifySlackSignature(req)) return res.status(401).send("Unauthorized");
   res.status(200).send();
-
   const event = body.event;
   if (!event) return;
-
   const eventId = body.event_id || `${event.type}-${event.ts}`;
   if (processedEvents.has(eventId)) return;
   processedEvents.add(eventId);
-  if (processedEvents.size > 500) {
-    const first = processedEvents.values().next().value;
-    processedEvents.delete(first);
-  }
-
+  if (processedEvents.size > 500) processedEvents.delete(processedEvents.values().next().value);
   const isDirectMessage = event.channel_type === "im";
   const isMention = event.type === "app_mention";
   const isBotMessage = event.bot_id || event.subtype === "bot_message";
-
   if (!isBotMessage && (isDirectMessage || isMention)) {
     const userText = (event.text || "").replace(/<@[A-Z0-9]+>/g, "").trim();
     if (!userText) return;
-
     try {
       const reply = await callGroq(userText);
       await slackPostMessage(event.channel, reply, event.thread_ts || event.ts);
     } catch (err) {
-      console.error("Error processing event:", err.message);
-      await slackPostMessage(
-        event.channel,
-        "Hubo un error procesando tu mensaje. Intenta de nuevo.",
-        event.thread_ts || event.ts
-      );
+      console.error("Error:", err.message);
+      await slackPostMessage(event.channel, "Hubo un error procesando tu mensaje. Intenta de nuevo.", event.thread_ts || event.ts);
     }
   }
 });
 
-app.get("/", (req, res) => res.send("tapi design bot activo - v2 con base de conocimiento"));
+app.get("/", (req, res) => res.send("tapi design bot v3 — knowledge base completa"));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
