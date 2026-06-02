@@ -11,7 +11,7 @@ const https = require("https");
 
 console.log("=== tapi-design bot starting ===");
 console.log("PORT:", process.env.PORT);
-console.log("GEMINI_API_KEY present:", !!process.env.GEMINI_API_KEY);
+console.log("GROQ_API_KEY present:", !!process.env.GROQ_API_KEY);
 console.log("SLACK_BOT_TOKEN present:", !!process.env.SLACK_BOT_TOKEN);
 console.log("SLACK_SIGNING_SECRET present:", !!process.env.SLACK_SIGNING_SECRET);
 
@@ -95,32 +95,55 @@ async function downloadSlackImage(url) {
   });
 }
 
-async function callGemini(userText, imageData) {
-  const parts = [];
-  if (userText) parts.push({ text: userText });
-  if (imageData) parts.push({ inline_data: { mime_type: imageData.mimeType, data: imageData.data } });
+async function callGroq(userText, imageData) {
+  const messages = [];
+
+  if (imageData) {
+    messages.push({
+      role: "user",
+      content: [
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:${imageData.mimeType};base64,${imageData.data}`
+          }
+        },
+        {
+          type: "text",
+          text: userText || "Analiza esta imagen y dame feedback de diseno segun el design system de tapi."
+        }
+      ]
+    });
+  } else {
+    messages.push({ role: "user", content: userText });
+  }
 
   const payload = JSON.stringify({
-    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-    contents: [{ role: "user", parts }],
-    generationConfig: { maxOutputTokens: 1200, temperature: 0.4 },
+    model: imageData ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile",
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...messages
+    ],
+    max_tokens: 1200,
+    temperature: 0.4,
   });
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   const res = await httpsRequest({
-    hostname: "generativelanguage.googleapis.com",
-    path: `/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    hostname: "api.groq.com",
+    path: "/openai/v1/chat/completions",
     method: "POST",
     headers: {
+      "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       "Content-Length": Buffer.byteLength(payload),
     },
   }, payload);
 
   if (res.status !== 200) {
-    throw new Error(`Gemini error ${res.status}: ${JSON.stringify(res.body).slice(0, 200)}`);
+    throw new Error(`Groq error ${res.status}: ${JSON.stringify(res.body).slice(0, 200)}`);
   }
-  return res.body.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta";
+  return res.body.choices?.[0]?.message?.content || "Sin respuesta";
 }
 
 async function slackPostMessage(channel, text, thread_ts) {
@@ -223,7 +246,7 @@ app.post("/slack/events", async (req, res) => {
     const textToSend = userText || "Analiza esta imagen y dame feedback de diseno segun el design system de tapi.";
 
     try {
-      const reply = await callGemini(textToSend, imageData);
+      const reply = await callGroq(textToSend, imageData);
       await slackPostMessage(event.channel, reply);
     } catch (err) {
       console.error("Error processing event:", err.message);
@@ -232,7 +255,7 @@ app.post("/slack/events", async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => res.send("tapi design bot v7 — Gemini Flash (AI Studio free tier) + image support"));
+app.get("/", (req, res) => res.send("tapi design bot v8 — Groq Llama (llama-3.3-70b + llama-3.2-11b-vision) + image support"));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log(`Server running on port ${PORT}`); });
