@@ -345,14 +345,15 @@ function httpsRequest(options, body) {
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
       let data = "";
-      res.on("data", (chunk) => (data += chunk));
+      res.on("data", (chunk) => { data += chunk; });
       res.on("end", () => {
         try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
         catch { resolve({ status: res.statusCode, body: data }); }
       });
     });
     req.on("error", reject);
-    if (body) req.write(typeof body === "string" ? body : JSON.stringify(body));
+    req.setTimeout(25000, () => { req.destroy(new Error("timeout")); });
+    if (body) req.write(body);
     req.end();
   });
 }
@@ -383,7 +384,9 @@ async function callGroq(userText) {
     body
   );
 
-  if (res.status !== 200) throw new Error(`Groq error ${res.status}: ${JSON.stringify(res.body)}`);
+  if (res.status !== 200) {
+    throw new Error(`Groq error ${res.status}: ${JSON.stringify(res.body).slice(0, 200)}`);
+  }
   return res.body.choices?.[0]?.message?.content || "Sin respuesta";
 }
 
@@ -544,8 +547,7 @@ app.post("/slack/events", async (req, res) => {
       console.error("Error processing event:", err.message);
       await slackPostMessage(
         event.channel,
-        "Hubo un error procesando tu mensaje. Intent\u00E1 de nuevo.",
-        event.thread_ts || event.ts
+        "Hubo un error procesando tu mensaje. Intentá de nuevo."
       );
     }
   }
