@@ -434,104 +434,70 @@ const processedEvents = new Set();
 
 // \u2500\u2500\u2500 APP HOME TAB \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 async function publishHomeTab(userId) {
-  const view = {
-    type: "home",
-    blocks: [
-      {
-        type: "header",
-        text: { type: "plain_text", text: "Hola! Soy el asistente de dise\u00F1o de TAPI \u1F44B", emoji: true }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "Estoy ac\u00E1 para ayudarte con todo lo relacionado al dise\u00F1o y la marca de TAPI. Escribime directamente en el chat o mencioname en cualquier canal con *@tapi-design*."
+  const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+  await slack.views.publish({
+    user_id: userId,
+    view: {
+      type: "home",
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "*¡Hola! Soy el asistente de diseño de tapi* :art:\nEstoy acá para ayudarte con el design system, assets y marca. Escribíme directo o mencioname con *@tapi-design*."
+          }
+        },
+        { type: "divider" },
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "*¿Qué puedo hacer por vos?*" }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: ":clipboard: *Pedido de diseño*\nDescribime lo que necesitás y armo el brief.\n_Ej: \"Necesito un banner para LinkedIn sobre pagos en México\"_"
+          }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: ":pencil: *Copy y textos*\nTe doy 2-3 variantes con el tono de voz de tapi.\n_Ej: \"Copy para un post de Instagram\"_"
+          }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: ":art: *Colores y tipografía*\nTokens del design system: colores HEX/RGB, tipografías, espaciados."
+          }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: ":straight_ruler: *Tamaños de piezas*\nDimensiones exactas para cualquier formato digital."
+          }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: ":package: *Materiales descargables*\nBanners, logos, tipografía Objectivity, fondos y firma de mail."
+          }
+        },
+        { type: "divider" },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: ":link: *Links rápidos*\n• <https://bit.ly/tapi-pedidos|Board de Pedidos>\n• <https://bit.ly/tapi-assets|Materiales de marca>\n• <https://bit.ly/tapi-figma|Templates Figma>\n• <https://bit.ly/tapi-marca|Manual de marca>"
+          }
         }
-      },
-      { type: "divider" },
-      {
-        type: "section",
-        text: { type: "mrkdwn", text: "*\u1F3A8 \u00BFQu\u00E9 puedo hacer por vos?*" }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "*\u1F4CB Crear un pedido de dise\u00F1o*\nDescribime lo que necesit\u00E1s y armo el brief completo listo para pegar en Notion.\n_Ejemplo: \"Necesito un banner para LinkedLinkedIn sobre el lanzamiento de pagos en M\u00E9xico\"_"
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "*\u270D\uFE0F Generar copy*\nPedime texto para cualquier pieza y te doy 2-3 variantes con el tono de voz de TAPI.\n_Ejemplo: \"Escribime el copy para un post de Instagram anunciando d\u00E9bito autom\u00E1tico\"_"
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "*\u1F3A8 Colores y tipograf\u00EDa*\nConsultame cualquier token del design system: colores en HEX/RGB/HSL, tipograf\u00EDas, tama\u00F1os, espaciados.\n_Ejemplo: \"\u00BFCu\u00E1l es el c\u00F3digo RGB del morado principal?\"_"
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "*\u1F4D0 Tama\u00F1os de piezas*\nTe digo las dimensiones exactas para cualquier formato.\n_Ejemplo: \"\u00BFQu\u00E9 tama\u00F1o tiene un post de Instagram?\"_"
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "*\u1F4E5 Materiales descargables*\nBanners, fondos para Meet, logos, tipograf\u00EDa Objectivity, firma de mail.\n_Ejemplo: \"\u00BFD\u00F3nde descargo un fondo para Google Meet?\"_"
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "*\u26A1 SLA y flujo de trabajo*\nConsultame cu\u00E1nto tarda un pedido, c\u00F3mo hacer un brief o cu\u00E1l es el estado de un dise\u00F1o.\n_Ejemplo: \"\u00BFCu\u00E1nto tarda un pedido urgente?\"_"
-        }
-      },
-      { type: "divider" },
-      {
-        type: "section",
-        text: { type: "mrkdwn", text: "*\u1F517 Links r\u00E1pidos*" }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "\u2022 <https://www.notion.so/taparg/9a0c4f4ad2b0469eb94830f4066c63ab|\u1F4CB Board de Pedidos a Marketing>\n\u2022 <https://www.notion.so/taparg/Materiales-descargables-de-marca-18036faa2e214d6eb29e79f57d0c3cce|\u1F4E5 Materiales descargables de marca>\n\u2022 <https://www.notion.so/taparg/Templates-Figma-3148feb1ff1d80cf81b2d9c493870e42|\u1F3A8 Templates Figma>\n\u2022 <https://www.notion.so/taparg/Manual-de-marca-c438b6ded9024c3485e7e574f60ffc0b|\u1F4D4 Manual de marca>"
-        }
-      },
-      { type: "divider" },
-      {
-        type: "context",
-        elements: [
-          { type: "mrkdwn", text: "Escribime en el chat de mensajes directo \u1F4AC" }
-        ]
-      }
-    ]
-  };
-
-  const body = JSON.stringify({ user_id: userId, view });
-  const result = await httpsRequest(
-    {
-      hostname: "slack.com",
-      path: "/api/views.publish",
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body),
-      },
-    },
-    body
-  );
-  console.log("publishHomeTab result:", result.status, JSON.stringify(result.body).slice(0, 200));
+      ]
+    }
+  });
 }
 
 app.post("/slack/events", async (req, res) => {
