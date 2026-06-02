@@ -17,6 +17,9 @@ console.log("SLACK_SIGNING_SECRET present:", !!process.env.SLACK_SIGNING_SECRET)
 
 const app = express();
 
+// Temporary image store — llama-4 on Groq only accepts URLs, not base64
+const tempImages = new Map();
+
 const SYSTEM_PROMPT = `Sos el asistente de diseno de tapi en Slack. Respondes en espanol, de forma concisa y directa.
 
 SOBRE TAPI:
@@ -96,27 +99,33 @@ async function downloadSlackImage(url) {
 }
 
 function parseRetryTime(groqMessage) {
-  // Groq includes "Please try again in Xm Ys" or "in Xs" in the message
   const match = groqMessage && groqMessage.match(/try again in ([\d]+m ?[\d]*s?|[\d.]+s)/i);
   return match ? match[1].trim() : null;
 }
 
 async function callGroq(userText, imageData) {
   const messages = [];
+  const model = "meta-llama/llama-4-scout-17b-16e-instruct";
 
   if (imageData) {
+    // llama-4 on Groq only accepts public URLs — serve image from our own endpoint
+    const imgId = Math.random().toString(36).slice(2, 10);
+    tempImages.set(imgId, imageData);
+    setTimeout(() => tempImages.delete(imgId), 5 * 60 * 1000); // TTL 5 min
+
+    const imageUrl = `https://tapi-design-bot-production.up.railway.app/img/${imgId}`;
+    console.log("Serving image at:", imageUrl);
+
     messages.push({
       role: "user",
       content: [
-        { type: "image_url", image_url: { url: `data:${imageData.mimeType};base64,${imageData.data}` } },
+        { type: "image_url", image_url: { url: imageUrl } },
         { type: "text", text: userText || "Analiza esta imagen y dame feedback de diseno segun el design system de tapi." }
       ]
     });
   } else {
     messages.push({ role: "user", content: userText });
   }
-
-  const model = imageData ? "meta-llama/llama-4-scout-17b-16e-instruct" : "llama-3.3-70b-versatile";
 
   const payload = JSON.stringify({
     model,
@@ -140,7 +149,8 @@ async function callGroq(userText, imageData) {
     return { ok: true, text: res.body.choices?.[0]?.message?.content || "Sin respuesta" };
   }
 
-  // Parse error
+  console.error(`Groq error [${res.status}] model=${model}:`, JSON.stringify(res.body).slice(0, 500));
+
   const errBody = res.body;
   const errCode = errBody?.error?.code || "";
   const errMsg = errBody?.error?.message || "";
@@ -155,7 +165,6 @@ async function callGroq(userText, imageData) {
     return { ok: false, userMsg: "🔑 Error de autenticación con el servicio de IA. Contactá al equipo técnico." };
   }
 
-  // Generic internal error — solo el código
   const code = errCode || res.status;
   return { ok: false, userMsg: `❌ Error interno [${code}]` };
 }
@@ -186,6 +195,14 @@ function verifySlackSignature(req) {
 }
 
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } }));
+
+// Serve temporarily stored images for Groq (llama-4 requires public URLs)
+app.get("/img/:id", (req, res) => {
+  const img = tempImages.get(req.params.id);
+  if (!img) return res.status(404).send("Not found");
+  res.setHeader("Content-Type", img.mimeType);
+  res.send(Buffer.from(img.data, "base64"));
+});
 
 const processedEvents = new Set();
 
@@ -269,7 +286,7 @@ app.post("/slack/events", async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => res.send("tapi design bot v10 — Groq Llama-4 Scout vision + smart error handling"));
+app.get("/", (req, res) => res.send("tapi design bot v12 — Groq Llama-4 Scout vision via URL proxy"));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log(`Server running on port ${PORT}`); });
