@@ -573,7 +573,7 @@ app.post("/slack/events", async (req, res) => {
 
     try {
       const reply = await callGroq(userText);
-      await slackPostMessage(event.channel, reply, event.thread_ts || event.ts);
+      await slackPostMessage(event.channel, reply);
     } catch (err) {
       console.error("Error processing event:", err.message);
       await slackPostMessage(
