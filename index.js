@@ -62,8 +62,8 @@ function httpsRequest(options, body) {
       let data = "";
       res.on("data", (chunk) => { data += chunk; });
       res.on("end", () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
-        catch { resolve({ status: res.statusCode, body: data }); }
+        try { resolve({ status: res.statusCode, headers: res.headers, body: JSON.parse(data) }); }
+        catch { resolve({ status: res.statusCode, headers: res.headers, body: data }); }
       });
     });
     req.on("error", reject);
@@ -95,6 +95,12 @@ async function downloadSlackImage(url) {
   });
 }
 
+function parseRetryTime(groqMessage) {
+  // Groq includes "Please try again in Xm Ys" or "in Xs" in the message
+  const match = groqMessage && groqMessage.match(/try again in ([\d]+m ?[\d]*s?|[\d.]+s)/i);
+  return match ? match[1].trim() : null;
+}
+
 async function callGroq(userText, imageData) {
   const messages = [];
 
@@ -102,48 +108,56 @@ async function callGroq(userText, imageData) {
     messages.push({
       role: "user",
       content: [
-        {
-          type: "image_url",
-          image_url: {
-            url: `data:${imageData.mimeType};base64,${imageData.data}`
-          }
-        },
-        {
-          type: "text",
-          text: userText || "Analiza esta imagen y dame feedback de diseno segun el design system de tapi."
-        }
+        { type: "image_url", image_url: { url: `data:${imageData.mimeType};base64,${imageData.data}` } },
+        { type: "text", text: userText || "Analiza esta imagen y dame feedback de diseno segun el design system de tapi." }
       ]
     });
   } else {
     messages.push({ role: "user", content: userText });
   }
 
+  const model = imageData ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile";
+
   const payload = JSON.stringify({
-    model: imageData ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile",
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      ...messages
-    ],
+    model,
+    messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
     max_tokens: 1200,
     temperature: 0.4,
   });
 
-  const apiKey = process.env.GROQ_API_KEY;
   const res = await httpsRequest({
     hostname: "api.groq.com",
     path: "/openai/v1/chat/completions",
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
       "Content-Type": "application/json",
       "Content-Length": Buffer.byteLength(payload),
     },
   }, payload);
 
-  if (res.status !== 200) {
-    throw new Error(`Groq error ${res.status}: ${JSON.stringify(res.body).slice(0, 200)}`);
+  if (res.status === 200) {
+    return { ok: true, text: res.body.choices?.[0]?.message?.content || "Sin respuesta" };
   }
-  return res.body.choices?.[0]?.message?.content || "Sin respuesta";
+
+  // Parse error
+  const errBody = res.body;
+  const errCode = errBody?.error?.code || "";
+  const errMsg = errBody?.error?.message || "";
+
+  if (res.status === 429 || errCode === "rate_limit_exceeded") {
+    const retryIn = parseRetryTime(errMsg);
+    const retryText = retryIn ? ` Intenta de nuevo en *${retryIn}*.` : " Intenta de nuevo en unos minutos.";
+    return { ok: false, userMsg: `⏳ Llegué al límite de consultas por ahora.${retryText}` };
+  }
+
+  if (res.status === 401 || errCode === "invalid_api_key") {
+    return { ok: false, userMsg: "🔑 Error de autenticación con el servicio de IA. Contactá al equipo técnico." };
+  }
+
+  // Generic internal error — solo el código
+  const code = errCode || res.status;
+  return { ok: false, userMsg: `❌ Error interno [${code}]` };
 }
 
 async function slackPostMessage(channel, text, thread_ts) {
@@ -246,16 +260,16 @@ app.post("/slack/events", async (req, res) => {
     const textToSend = userText || "Analiza esta imagen y dame feedback de diseno segun el design system de tapi.";
 
     try {
-      const reply = await callGroq(textToSend, imageData);
-      await slackPostMessage(event.channel, reply);
+      const result = await callGroq(textToSend, imageData);
+      await slackPostMessage(event.channel, result.text || result.userMsg);
     } catch (err) {
-      console.error("Error processing event:", err.message);
-      await slackPostMessage(event.channel, "Hubo un error procesando tu mensaje. Intenta de nuevo.");
+      console.error("Unexpected error:", err.message);
+      await slackPostMessage(event.channel, `❌ Error interno [unexpected]`);
     }
   }
 });
 
-app.get("/", (req, res) => res.send("tapi design bot v8 — Groq Llama (llama-3.3-70b + llama-3.2-11b-vision) + image support"));
+app.get("/", (req, res) => res.send("tapi design bot v9 — Groq Llama + smart error handling"));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log(`Server running on port ${PORT}`); });
