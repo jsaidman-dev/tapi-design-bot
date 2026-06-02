@@ -11,13 +11,13 @@ const https = require("https");
 
 console.log("=== tapi-design bot starting ===");
 console.log("PORT:", process.env.PORT);
-console.log("GROQ_API_KEY present:", !!process.env.GROQ_API_KEY);
+console.log("GEMINI_API_KEY present:", !!process.env.GEMINI_API_KEY);
 console.log("SLACK_BOT_TOKEN present:", !!process.env.SLACK_BOT_TOKEN);
 console.log("SLACK_SIGNING_SECRET present:", !!process.env.SLACK_SIGNING_SECRET);
 
 const app = express();
 
-// \u2500\u2500\u2500 SYSTEM PROMPT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// --- SYSTEM PROMPT ---
 const SYSTEM_PROMPT = `Sos el asistente de diseno de tapi en Slack. Respondes en espanol, de forma concisa y directa.
 
 SOBRE TAPI:
@@ -46,7 +46,8 @@ LO QUE PODES HACER:
 2. Generar 2-3 variantes de copy con tono de tapi
 3. Responder sobre tokens del design system (colores, tipografia, espaciados)
 4. Indicar tamanos exactos de cualquier pieza
-5. Linkear a materiales descargables
+5. Analizar piezas graficas compartidas y dar feedback
+6. Linkear a materiales descargables
 
 LINKS UTILES:
 - Board de pedidos: https://www.notion.so/taparg/9a0c4f4ad2b0469eb94830f4066c63ab
@@ -54,7 +55,9 @@ LINKS UTILES:
 - Templates Figma: https://www.notion.so/taparg/Templates-Figma-3148feb1ff1d80cf81b2d9c493870e42
 - Manual de marca: https://www.notion.so/taparg/Manual-de-marca-c438b6ded9024c3485e7e574f60ffc0b
 
-Siempre incluye el link de Notion mas relevante en tu respuesta. Si no sabes algo, decilo y sugerí contactar al equipo de diseno.`
+Siempre incluye el link de Notion mas relevante en tu respuesta. Si no sabes algo, decilo y sugeri contactar al equipo de diseno.`
+
+// --- HTTP helper ---
 function httpsRequest(options, body) {
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
@@ -72,59 +75,75 @@ function httpsRequest(options, body) {
   });
 }
 
-// \u2500\u2500\u2500 GROQ \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-async function callGroq(userText) {
-  const body = JSON.stringify({
-    model: "llama-3.3-70b-versatile",
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userText },
-    ],
-    max_tokens: 1200,
-    temperature: 0.4,
+// --- Download image from Slack ---
+async function downloadSlackImage(url) {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const req = https.request({
+      hostname: urlObj.hostname,
+      path: urlObj.pathname + urlObj.search,
+      method: "GET",
+      headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
+    }, (res) => {
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        const buf = Buffer.concat(chunks);
+        resolve({ data: buf.toString("base64"), mimeType: res.headers["content-type"] || "image/jpeg" });
+      });
+    });
+    req.on("error", reject);
+    req.setTimeout(20000, () => req.destroy(new Error("image download timeout")));
+    req.end();
   });
-
-  const res = await httpsRequest(
-    {
-      hostname: "api.groq.com",
-      path: "/openai/v1/chat/completions",
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body),
-      },
-    },
-    body
-  );
-
-  if (res.status !== 200) {
-    throw new Error(`Groq error ${res.status}: ${JSON.stringify(res.body).slice(0, 200)}`);
-  }
-  return res.body.choices?.[0]?.message?.content || "Sin respuesta";
 }
 
-// \u2500\u2500\u2500 SLACK \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// --- Gemini Flash ---
+async function callGemini(userText, imageData) {
+  const parts = [];
+  if (userText) parts.push({ text: userText });
+  if (imageData) parts.push({ inline_data: { mime_type: imageData.mimeType, data: imageData.data } });
+
+  const payload = JSON.stringify({
+    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    contents: [{ role: "user", parts }],
+    generationConfig: { maxOutputTokens: 1200, temperature: 0.4 },
+  });
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  const res = await httpsRequest({
+    hostname: "generativelanguage.googleapis.com",
+    path: `/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(payload),
+    },
+  }, payload);
+
+  if (res.status !== 200) {
+    throw new Error(`Gemini error ${res.status}: ${JSON.stringify(res.body).slice(0, 200)}`);
+  }
+  return res.body.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta";
+}
+
+// --- Slack helpers ---
 async function slackPostMessage(channel, text, thread_ts) {
   const body = JSON.stringify({
     channel,
     text,
     ...(thread_ts && { thread_ts }),
   });
-
-  await httpsRequest(
-    {
-      hostname: "slack.com",
-      path: "/api/chat.postMessage",
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body),
-      },
+  await httpsRequest({
+    hostname: "slack.com",
+    path: "/api/chat.postMessage",
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body),
     },
-    body
-  );
+  }, body);
 }
 
 function verifySlackSignature(req) {
@@ -138,18 +157,14 @@ function verifySlackSignature(req) {
   return computed === slackSig;
 }
 
-// \u2500\u2500\u2500 EXPRESS \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-app.use(
-  express.json({
-    verify: (req, res, buf) => {
-      req.rawBody = buf.toString();
-    },
-  })
-);
+// --- Express middleware ---
+app.use(express.json({
+  verify: (req, res, buf) => { req.rawBody = buf.toString(); },
+}));
 
 const processedEvents = new Set();
 
-// \u2500\u2500\u2500 APP HOME TAB \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// --- Home Tab ---
 async function publishHomeTab(userId) {
   const body = JSON.stringify({
     user_id: userId,
@@ -159,11 +174,12 @@ async function publishHomeTab(userId) {
         { type: "section", text: { type: "mrkdwn", text: "*Hola! Soy el asistente de diseno de tapi*\nEstoy aca para ayudarte con el design system, assets y marca. Escribime directo o mencioname con *@tapi-design*." } },
         { type: "divider" },
         { type: "section", text: { type: "mrkdwn", text: "*Que puedo hacer por vos?*" } },
-        { type: "section", text: { type: "mrkdwn", text: "*Pedido de diseno* — Describime lo que necesitas y armo el brief.\n_Ej: \"Necesito un banner para LinkedIn\"_" } },
-        { type: "section", text: { type: "mrkdwn", text: "*Copy y textos* — 2-3 variantes con el tono de voz de tapi.\n_Ej: \"Copy para un post de Instagram\"_" } },
-        { type: "section", text: { type: "mrkdwn", text: "*Colores y tipografia* — Tokens HEX/RGB, tipografias, espaciados." } },
-        { type: "section", text: { type: "mrkdwn", text: "*Tamanos de piezas* — Dimensiones exactas para cualquier formato." } },
-        { type: "section", text: { type: "mrkdwn", text: "*Materiales descargables* — Banners, logos, tipografia Objectivity, fondos y firma de mail." } },
+        { type: "section", text: { type: "mrkdwn", text: "*Pedido de diseno* \u2014 Describime lo que necesitas y armo el brief.\n_Ej: \"Necesito un banner para LinkedIn\"_" } },
+        { type: "section", text: { type: "mrkdwn", text: "*Copy y textos* \u2014 2-3 variantes con el tono de voz de tapi.\n_Ej: \"Copy para un post de Instagram\"_" } },
+        { type: "section", text: { type: "mrkdwn", text: "*Colores y tipografia* \u2014 Tokens HEX/RGB, tipografias, espaciados." } },
+        { type: "section", text: { type: "mrkdwn", text: "*Tamanos de piezas* \u2014 Dimensiones exactas para cualquier formato." } },
+        { type: "section", text: { type: "mrkdwn", text: "*Analisis de piezas* \u2014 Compartí una imagen y te doy feedback de marca." } },
+        { type: "section", text: { type: "mrkdwn", text: "*Materiales descargables* \u2014 Banners, logos, tipografia Objectivity, fondos y firma de mail." } },
         { type: "divider" },
         { type: "section", text: { type: "mrkdwn", text: "*Links rapidos*\n- <https://www.notion.so/taparg/9a0c4f4ad2b0469eb94830f4066c63ab|Board de Pedidos>\n- <https://www.notion.so/taparg/Materiales-descargables-de-marca-18036faa2e214d6eb29e79f57d0c3cce|Materiales de marca>\n- <https://www.notion.so/taparg/Templates-Figma-3148feb1ff1d80cf81b2d9c493870e42|Templates Figma>\n- <https://www.notion.so/taparg/Manual-de-marca-c438b6ded9024c3485e7e574f60ffc0b|Manual de marca>" } }
       ]
@@ -181,6 +197,7 @@ async function publishHomeTab(userId) {
   }, body);
 }
 
+// --- Main event handler ---
 app.post("/slack/events", async (req, res) => {
   const body = req.body;
 
@@ -204,7 +221,6 @@ app.post("/slack/events", async (req, res) => {
     processedEvents.delete(processedEvents.values().next().value);
   }
 
-  // App Home abierto
   if (event.type === "app_home_opened" && event.tab === "home") {
     try { await publishHomeTab(event.user); } catch (err) { console.error("Home tab error:", err.message); }
     return;
@@ -216,22 +232,34 @@ app.post("/slack/events", async (req, res) => {
 
   if (!isBotMessage && (isDirectMessage || isMention)) {
     const userText = (event.text || "").replace(/<@[A-Z0-9]+>/g, "").trim();
-    if (!userText) return;
+
+    let imageData = null;
+    if (event.files && event.files.length > 0) {
+      const file = event.files[0];
+      if (file.mimetype && file.mimetype.startsWith("image/") && file.url_private) {
+        try {
+          imageData = await downloadSlackImage(file.url_private);
+        } catch (err) {
+          console.error("Image download error:", err.message);
+        }
+      }
+    }
+
+    if (!userText && !imageData) return;
+
+    const textToSend = userText || "Analiza esta imagen y dame feedback de diseno segun el design system de tapi.";
 
     try {
-      const reply = await callGroq(userText);
+      const reply = await callGemini(textToSend, imageData);
       await slackPostMessage(event.channel, reply);
     } catch (err) {
       console.error("Error processing event:", err.message);
-      await slackPostMessage(
-        event.channel,
-        "Hubo un error procesando tu mensaje. Intentá de nuevo."
-      );
+      await slackPostMessage(event.channel, "Hubo un error procesando tu mensaje. Intenta de nuevo.");
     }
   }
 });
 
-app.get("/", (req, res) => res.send("tapi design bot v4 \u2014 home tab + knowledge base completa"));
+app.get("/", (req, res) => res.send("tapi design bot v5 \u2014 Gemini Flash + image support"));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
