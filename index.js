@@ -116,7 +116,7 @@ async function callGroq(userText, imageData) {
     messages.push({ role: "user", content: userText });
   }
 
-  const model = imageData ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile";
+  const model = imageData ? "meta-llama/llama-4-scout-17b-16e-instruct" : "llama-3.3-70b-versatile";
 
   const payload = JSON.stringify({
     model,
@@ -269,7 +269,7 @@ app.post("/slack/events", async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => res.send("tapi design bot v9 — Groq Llama + smart error handling"));
+app.get("/", (req, res) => res.send("tapi design bot v10 — Groq Llama-4 Scout vision + smart error handling"));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log(`Server running on port ${PORT}`); });
