@@ -11,7 +11,7 @@ const https = require("https");
 
 console.log("=== tapi-design bot starting ===");
 console.log("PORT:", process.env.PORT);
-console.log("GEMINI_API_KEY present:", !!process.env.GEMINI_API_KEY);
+console.log("OPENAI_API_KEY present:", !!process.env.OPENAI_API_KEY);
 console.log("SLACK_BOT_TOKEN present:", !!process.env.SLACK_BOT_TOKEN);
 console.log("SLACK_SIGNING_SECRET present:", !!process.env.SLACK_SIGNING_SECRET);
 
@@ -98,42 +98,42 @@ async function downloadSlackImage(url) {
   });
 }
 
-// --- Gemini Flash ---
-async function callGemini(userText, imageData) {
-  const parts = [];
-  if (userText) parts.push({ text: userText });
-  if (imageData) parts.push({ inline_data: { mime_type: imageData.mimeType, data: imageData.data } });
+// --- OpenAI GPT-4o-mini ---
+async function callOpenAI(userText, imageData) {
+  const content = [];
+  if (userText) content.push({ type: "text", text: userText });
+  if (imageData) content.push({ type: "image_url", image_url: { url: `data:${imageData.mimeType};base64,${imageData.data}` } });
 
   const payload = JSON.stringify({
-    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-    contents: [{ role: "user", parts }],
-    generationConfig: { maxOutputTokens: 1200, temperature: 0.4 },
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content }
+    ],
+    max_tokens: 1200,
+    temperature: 0.4,
   });
 
-  const apiKey = process.env.GEMINI_API_KEY;
   const res = await httpsRequest({
-    hostname: "generativelanguage.googleapis.com",
-    path: `/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    hostname: "api.openai.com",
+    path: "/v1/chat/completions",
     method: "POST",
     headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       "Content-Type": "application/json",
       "Content-Length": Buffer.byteLength(payload),
     },
   }, payload);
 
   if (res.status !== 200) {
-    throw new Error(`Gemini error ${res.status}: ${JSON.stringify(res.body).slice(0, 200)}`);
+    throw new Error(`OpenAI error ${res.status}: ${JSON.stringify(res.body).slice(0, 200)}`);
   }
-  return res.body.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta";
+  return res.body.choices?.[0]?.message?.content || "Sin respuesta";
 }
 
 // --- Slack helpers ---
 async function slackPostMessage(channel, text, thread_ts) {
-  const body = JSON.stringify({
-    channel,
-    text,
-    ...(thread_ts && { thread_ts }),
-  });
+  const body = JSON.stringify({ channel, text, ...(thread_ts && { thread_ts }) });
   await httpsRequest({
     hostname: "slack.com",
     path: "/api/chat.postMessage",
@@ -157,10 +157,7 @@ function verifySlackSignature(req) {
   return computed === slackSig;
 }
 
-// --- Express middleware ---
-app.use(express.json({
-  verify: (req, res, buf) => { req.rawBody = buf.toString(); },
-}));
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } }));
 
 const processedEvents = new Set();
 
@@ -200,15 +197,8 @@ async function publishHomeTab(userId) {
 // --- Main event handler ---
 app.post("/slack/events", async (req, res) => {
   const body = req.body;
-
-  if (body.type === "url_verification") {
-    return res.json({ challenge: body.challenge });
-  }
-
-  if (!verifySlackSignature(req)) {
-    return res.status(401).send("Unauthorized");
-  }
-
+  if (body.type === "url_verification") return res.json({ challenge: body.challenge });
+  if (!verifySlackSignature(req)) return res.status(401).send("Unauthorized");
   res.status(200).send();
 
   const event = body.event;
@@ -217,9 +207,7 @@ app.post("/slack/events", async (req, res) => {
   const eventId = body.event_id || `${event.type}-${event.ts}`;
   if (processedEvents.has(eventId)) return;
   processedEvents.add(eventId);
-  if (processedEvents.size > 500) {
-    processedEvents.delete(processedEvents.values().next().value);
-  }
+  if (processedEvents.size > 500) processedEvents.delete(processedEvents.values().next().value);
 
   if (event.type === "app_home_opened" && event.tab === "home") {
     try { await publishHomeTab(event.user); } catch (err) { console.error("Home tab error:", err.message); }
@@ -237,20 +225,16 @@ app.post("/slack/events", async (req, res) => {
     if (event.files && event.files.length > 0) {
       const file = event.files[0];
       if (file.mimetype && file.mimetype.startsWith("image/") && file.url_private) {
-        try {
-          imageData = await downloadSlackImage(file.url_private);
-        } catch (err) {
-          console.error("Image download error:", err.message);
-        }
+        try { imageData = await downloadSlackImage(file.url_private); }
+        catch (err) { console.error("Image download error:", err.message); }
       }
     }
 
     if (!userText && !imageData) return;
-
     const textToSend = userText || "Analiza esta imagen y dame feedback de diseno segun el design system de tapi.";
 
     try {
-      const reply = await callGemini(textToSend, imageData);
+      const reply = await callOpenAI(textToSend, imageData);
       await slackPostMessage(event.channel, reply);
     } catch (err) {
       console.error("Error processing event:", err.message);
@@ -259,9 +243,7 @@ app.post("/slack/events", async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => res.send("tapi design bot v5 \u2014 Gemini Flash + image support"));
+app.get("/", (req, res) => res.send("tapi design bot v6 \u2014 GPT-4o-mini + image support"));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => { console.log(`Server running on port ${PORT}`); });
