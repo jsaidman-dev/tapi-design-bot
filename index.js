@@ -444,47 +444,47 @@ async function publishHomeTab(userId) {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: "*¡Hola! Soy el asistente de diseño de tapi* :art:\nEstoy acá para ayudarte con el design system, assets y marca. Escribíme directo o mencioname con *@tapi-design*."
+            text: "*Hola! Soy el asistente de diseno de tapi*\nEstoy aca para ayudarte con el design system, assets y marca. Escribime directo o mencioname con *@tapi-design*."
           }
         },
         { type: "divider" },
         {
           type: "section",
-          text: { type: "mrkdwn", text: "*¿Qué puedo hacer por vos?*" }
+          text: { type: "mrkdwn", text: "*Que puedo hacer por vos?*" }
         },
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: ":clipboard: *Pedido de diseño*\nDescribime lo que necesitás y armo el brief.\n_Ej: \"Necesito un banner para LinkedIn sobre pagos en México\"_"
+            text: "* Pedido de diseno* — Describime lo que necesitas y armo el brief.\n_Ej: \"Necesito un banner para LinkedIn sobre pagos en Mexico\"_"
           }
         },
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: ":pencil: *Copy y textos*\nTe doy 2-3 variantes con el tono de voz de tapi.\n_Ej: \"Copy para un post de Instagram\"_"
+            text: "* Copy y textos* — 2-3 variantes con el tono de voz de tapi.\n_Ej: \"Copy para un post de Instagram\"_"
           }
         },
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: ":art: *Colores y tipografía*\nTokens del design system: colores HEX/RGB, tipografías, espaciados."
+            text: "* Colores y tipografia* — Tokens del design system: colores HEX/RGB, tipografias, espaciados."
           }
         },
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: ":straight_ruler: *Tamaños de piezas*\nDimensiones exactas para cualquier formato digital."
+            text: "* Tamanos de piezas* — Dimensiones exactas para cualquier formato digital."
           }
         },
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: ":package: *Materiales descargables*\nBanners, logos, tipografía Objectivity, fondos y firma de mail."
+            text: "* Materiales descargables* — Banners, logos, tipografia Objectivity, fondos y firma de mail."
           }
         },
         { type: "divider" },
@@ -492,7 +492,7 @@ async function publishHomeTab(userId) {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: ":link: *Links rápidos*\n• <https://bit.ly/tapi-pedidos|Board de Pedidos>\n• <https://bit.ly/tapi-assets|Materiales de marca>\n• <https://bit.ly/tapi-figma|Templates Figma>\n• <https://bit.ly/tapi-marca|Manual de marca>"
+            text: "*Links rapidos*\n- <https://bit.ly/tapi-pedidos|Board de Pedidos>\n- <https://bit.ly/tapi-assets|Materiales de marca>\n- <https://bit.ly/tapi-figma|Templates Figma>\n- <https://bit.ly/tapi-marca|Manual de marca>"
           }
         }
       ]
