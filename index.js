@@ -9,7 +9,7 @@ const express = require("express");
 const { createHmac } = require("crypto");
 const https = require("https");
 
-console.log("=== tapi-design bot v13 starting ===");
+console.log("=== tapi-design bot v14 starting ===");
 console.log("PORT:", process.env.PORT);
 console.log("GROQ_API_KEY present:", !!process.env.GROQ_API_KEY);
 console.log("SLACK_BOT_TOKEN present:", !!process.env.SLACK_BOT_TOKEN);
@@ -17,8 +17,26 @@ console.log("SLACK_SIGNING_SECRET present:", !!process.env.SLACK_SIGNING_SECRET)
 
 const app = express();
 
-// ─── SYSTEM PROMPT ──────────────────────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `Sos el asistente de diseño de tapi en Slack. Respondé siempre en español, conciso y directo. Incluí siempre el link de Notion relevante.
+// ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────
+const SYSTEM_PROMPT = `Sos TapBot, el asistente virtual de diseño de tapi en Slack. Respondé siempre en español, conciso y directo. Incluí siempre el link de Notion relevante.
+
+IDENTIDAD: Tu nombre es TapBot. Sos el asistente virtual de Tapi. Representás los valores de Tapi: simplicidad, servicio, tecnología, cercanía y eficiencia. Debés sentirte como un compañero de trabajo profesional, amable y resolutivo — no un chatbot divertido ni un asistente excesivamente formal.
+
+TONO Y PERSONALIDAD:
+- Formalidad: 7/10. Entre corporativo y amigable.
+- Transmitir: amabilidad genuina, profesionalismo accesible, claridad, cercanía sin exceso de confianza, optimismo moderado, paciencia constante.
+- Español neutro con influencia mexicana profesional. Usar: "Claro que sí", "Con gusto te ayudo", "Déjame revisarlo", "Te comparto la información", "Permíteme verificarlo", "Ya quedó listo", "Te apoyo con eso".
+- EVITAR: órale, no manches, qué padre, chido, wey, bro, carnal, simón, sale, jaja.
+- Emojis: máx 1 en mensajes positivos. Solo ✅ 👍 🎉 🚀. NUNCA 😂🤣😭😍😎🔥.
+- NUNCA sarcástico, burlón, sobreexplicativo, dramático ni robótico.
+
+FÓRMULA DE RESPUESTA: 1) Reconocer solicitud. 2) Resolver. 3) Ofrecer siguiente paso si aplica.
+Ejemplo correcto: "Claro que sí. Revisé la información y el proceso está listo. Si necesitás más detalles, con gusto te los comparto."
+NUNCA: "¡Qué buena pregunta! Me encanta ayudarte con este tipo de cosas..."
+
+ERRORES: Reconocer → explicar → proponer siguiente paso. Ej: "No pude obtener esa información. ¿Querés que intentemos de nuevo o revisamos una alternativa?"
+
+EQUIPO DE DISEÑO: Julián Saidman (jsaidman@auntap.com).
 
 MARCA: tapi (siempre minúsculas). Tagline: "Integrando Latinoamérica". B2B API-first, AR/CL/CO/MX/PE. Tono: directo, profesional, cercano, castellano neutro o rioplatense.
 LOGOS: Black (fondos claros): https://tapi.la/wp-content/uploads/2025/06/logo_black.svg | Light (fondos oscuros/verdes): https://tapi.la/wp-content/uploads/2024/07/Logo-nuevo.svg. Mínimo 32px alto. No distorsionar ni recolorear.
@@ -33,9 +51,9 @@ Gris: 50:#F9F9F9 100:#F2F2F2 200:#E5E5E5 300:#D0D0D0 400:#AAAAAA 500:#888888 600
 
 TOKENS: bg/primary:#FFFFFF bg/secondary:#F9F9F9 bg/dark:#01431D | border/default:#E5E5E5 border/strong:#D0D0D0 border/accent:#09D334 border/accent-soft:rgba(9,211,52,.25) | text/primary:#000000 text/secondary:#666666 text/tertiary:#AAAAAA text/disabled:#CCCCCC text/inverse:#FFFFFF | state: success:#09D334 warning:#F59E0B error:#EF4444 info:#3B82F6 | state-light: success:#E8FAF0 warning:#FEF3C7 error:#FEE2E2 info:#DBEAFE
 
-TIPOGRAFÍA: Objectivity (Única fuente tapi, no Inter ni Poppins). Fallback: -apple-system,Arial,sans-serif.
+TIPOGRAFÍA: Objectivity (ÚNICA fuente tapi, no Inter ni Poppins). Fallback: -apple-system,Arial,sans-serif.
 Pesos: 100 Thin | 300 Light | 400 Regular | 500 Medium | 700 Bold | 900 Black
-Escala: Display:72px/Black/lh110%/ls-3px | H1:56px/Bold/lh115%/ls-2px | H2:40px/Bold/lh120%/ls-1px | H3:32px/Bold/lh125%/ls-.5px | H4:28px/Medium/lh130% | H5:24px/Medium/lh135% | H6:20px/Medium/lh140% | BodyXL:18px/Regular/lh170% | BodyLG:16px/Regular/lh165% | BodyMD:14px/Regular/lh165% | BodySM:12px/Regular/lh160% | LabelLG:14px/Medium/ls.3px | Overline:11px/Medium/ls2px/MAYÚsCULAS
+Escala: Display:72px/Black/lh110%/ls-3px | H1:56px/Bold/lh115%/ls-2px | H2:40px/Bold/lh120%/ls-1px | H3:32px/Bold/lh125%/ls-.5px | H4:28px/Medium/lh130% | H5:24px/Medium/lh135% | H6:20px/Medium/lh140% | BodyXL:18px/Regular/lh170% | BodyLG:16px/Regular/lh165% | BodyMD:14px/Regular/lh165% | BodySM:12px/Regular/lh160% | LabelLG:14px/Medium/ls.3px | Overline:11px/Medium/ls2px/MAYÚSCULAS
 
 ESPACIADO (base 8px, solo múltiplos): 8 16 24 32 40 48 64 80 96 128 160px. Nunca 10,14,18,22px.
 RADIOS: none:0 xs:4 sm:8 md:12 lg:16 xl:24 2xl:32 full:999px
@@ -69,7 +87,7 @@ Descripción: | Entregables: | Referencias: [COMPLETAR]
 COPY: Si piden texto, generá 2-3 variantes con tono tapi, indicando canal y largo en caracteres.
 REGLAS: Español siempre. Máx 3-4 párrafos. Dá HEX+RGB para colores. Dá px para tamaños. Incluí link Notion relevante.`;
 
-// ─── HELPERS HTTP ─────────────────────────────────────────────────────────────────────────────────
+// ─── HELPERS HTTP ─────────────────────────────────────────────────────────────
 function httpsRequest(options, body) {
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
@@ -87,7 +105,7 @@ function httpsRequest(options, body) {
   });
 }
 
-// ─── DOWNLOAD SLACK IMAGE ─────────────────────────────────────────────────────────────────────
+// ─── DOWNLOAD SLACK IMAGE ─────────────────────────────────────────────────────
 async function downloadSlackImage(url) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
@@ -111,13 +129,13 @@ async function downloadSlackImage(url) {
   });
 }
 
-// ─── PARSE RETRY TIME ─────────────────────────────────────────────────────────────────────────────────
+// ─── PARSE RETRY TIME ─────────────────────────────────────────────────────────
 function parseRetryTime(msg) {
-  const match = msg && msg.match(/try again in ([\d]+m ?[\d]*s?|[\d.]+s)/i);
+  const match = msg && msg.match(/try again in ([d]+m ?[d]*s?|[d.]+s)/i);
   return match ? match[1].trim() : null;
 }
 
-// ─── CALL GROQ ────────────────────────────────────────────────────────────────────────────────────
+// ─── CALL GROQ ────────────────────────────────────────────────────────────────
 async function callGroq(userText, imageData) {
   const makePayload = (withImage) => {
     if (withImage && imageData) {
@@ -144,7 +162,9 @@ async function callGroq(userText, imageData) {
       });
     } else {
       const text = imageData
-        ? `[El usuario compartió una imagen pero no puedo procesarla en este momento. Respondé al texto si hay alguno, o indicá que podés ayudar con preguntas de diseño.]\n\n${userText || ""}`
+        ? `[El usuario compartió una imagen pero no puedo procesarla en este momento. Respondé al texto si hay alguno, o indicá que podés ayudar con preguntas de diseño.]
+
+${userText || ""}`
         : userText;
       return JSON.stringify({
         model: "llama-3.3-70b-versatile",
@@ -204,7 +224,7 @@ function handleGroqError(res) {
       || parseRetryTime(res.headers?.["x-ratelimit-reset-tokens"] || "")
       || parseRetryTime(res.headers?.["x-ratelimit-reset-requests"] || "");
     const retryText = retryIn ? ` Intenta de nuevo en *${retryIn}*.` : " Intenta de nuevo en *1 minuto*.";
-    return { ok: false, userMsg: `⏳ Llegé al límite de consultas por ahora.${retryText}` };
+    return { ok: false, userMsg: `⏳ Llegué al límite de consultas por ahora.${retryText}` };
   }
 
   if (res.status === 401 || errCode === "invalid_api_key") {
@@ -215,7 +235,7 @@ function handleGroqError(res) {
   return { ok: false, userMsg: `❌ Error interno [${code}]` };
 }
 
-// ─── SLACK ────────────────────────────────────────────────────────────────────────────────────────────
+// ─── SLACK ────────────────────────────────────────────────────────────────────
 async function slackPostMessage(channel, text, thread_ts) {
   const body = JSON.stringify({
     channel,
@@ -245,21 +265,21 @@ function verifySlackSignature(req) {
   return computed === slackSig;
 }
 
-// ─── EXPRESS ────────────────────────────────────────────────────────────────────────────────────────────
+// ─── EXPRESS ──────────────────────────────────────────────────────────────────
 app.use(express.json({
   verify: (req, res, buf) => { req.rawBody = buf.toString(); }
 }));
 
 const processedEvents = new Set();
 
-// ─── APP HOME TAB ──────────────────────────────────────────────────────────────────────────────────
+// ─── APP HOME TAB ─────────────────────────────────────────────────────────────
 async function publishHomeTab(userId) {
   const view = {
     type: "home",
     blocks: [
       {
         type: "header",
-        text: { type: "plain_text", text: "Hola! Soy el asistente de diseño de tapi 👋", emoji: true }
+        text: { type: "plain_text", text: "Hola! Soy TapBot, el asistente de diseño de tapi 👋", emoji: true }
       },
       {
         type: "section",
@@ -270,14 +290,28 @@ async function publishHomeTab(userId) {
       },
       { type: "divider" },
       { type: "section", text: { type: "mrkdwn", text: "*🎨 ¿Qué puedo hacer por vos?*" } },
-      { type: "section", text: { type: "mrkdwn", text: "*📋 Crear un pedido de diseño*\nDescribime lo que necesitás y armo el brief completo listo para pegar en Notion.\n_Ej: \"Necesito un banner para LinkedIn sobre el lanzamiento en México\"_" } },
-      { type: "section", text: { type: "mrkdwn", text: "*✍️ Generar copy*\nPedime texto para cualquier pieza y te doy 2-3 variantes con el tono de voz de tapi.\n_Ej: \"Copy para un post de Instagram anunciando débito automático\"_" } },
-      { type: "section", text: { type: "mrkdwn", text: "*🎨 Colores y tipografía*\nConsultame cualquier token del design system: colores HEX/RGB, tipografías, espaciados.\n_Ej: \"¿Cuál es el verde principal de tapi?\"_" } },
-      { type: "section", text: { type: "mrkdwn", text: "*📐 Tamaños de piezas*\nDimensiones exactas para cualquier formato.\n_Ej: \"¿Qué tamaño tiene un post de Instagram?\"_" } },
-      { type: "section", text: { type: "mrkdwn", text: "*🖼️ Análisis de piezas*\nCompartí una imagen y te doy feedback de diseño según el brand system de tapi." } },
-      { type: "section", text: { type: "mrkdwn", text: "*📥 Materiales descargables*\nBanners, logos, tipografía Objectivity, fondos para Meet, firma de mail." } },
+      { type: "section", text: { type: "mrkdwn", text: "*📋 Crear un pedido de diseño*
+Describime lo que necesitás y armo el brief completo listo para pegar en Notion.
+_Ej: "Necesito un banner para LinkedIn sobre el lanzamiento en México"_" } },
+      { type: "section", text: { type: "mrkdwn", text: "*✍️ Generar copy*
+Pedime texto para cualquier pieza y te doy 2-3 variantes con el tono de voz de tapi.
+_Ej: "Copy para un post de Instagram anunciando débito automático"_" } },
+      { type: "section", text: { type: "mrkdwn", text: "*🎨 Colores y tipografía*
+Consultame cualquier token del design system: colores HEX/RGB, tipografías, espaciados.
+_Ej: "¿Cuál es el verde principal de tapi?"_" } },
+      { type: "section", text: { type: "mrkdwn", text: "*📐 Tamaños de piezas*
+Dimensiones exactas para cualquier formato.
+_Ej: "¿Qué tamaño tiene un post de Instagram?"_" } },
+      { type: "section", text: { type: "mrkdwn", text: "*🖼️ Análisis de piezas*
+Compartí una imagen y te doy feedback de diseño según el brand system de tapi." } },
+      { type: "section", text: { type: "mrkdwn", text: "*📥 Materiales descargables*
+Banners, logos, tipografía Objectivity, fondos para Meet, firma de mail." } },
       { type: "divider" },
-      { type: "section", text: { type: "mrkdwn", text: "*🔗 Links rápidos*\n• <https://www.notion.so/taparg/9a0c4f4ad2b0469eb94830f4066c63ab|📋 Board de Pedidos a Marketing>\n• <https://www.notion.so/taparg/Materiales-descargables-de-marca-18036faa2e214d6eb29e79f57d0c3cce|📥 Materiales de marca>\n• <https://www.notion.so/taparg/Templates-Figma-3148feb1ff1d80cf81b2d9c493870e42|🎨 Templates Figma>\n• <https://www.notion.so/taparg/Manual-de-marca-c438b6ded9024c3485e7e574f60ffc0b|📔 Manual de marca>" } },
+      { type: "section", text: { type: "mrkdwn", text: "*🔗 Links rápidos*
+• <https://www.notion.so/taparg/9a0c4f4ad2b0469eb94830f4066c63ab|📋 Board de Pedidos a Marketing>
+• <https://www.notion.so/taparg/Materiales-descargables-de-marca-18036faa2e214d6eb29e79f57d0c3cce|📥 Materiales de marca>
+• <https://www.notion.so/taparg/Templates-Figma-3148feb1ff1d80cf81b2d9c493870e42|🎨 Templates Figma>
+• <https://www.notion.so/taparg/Manual-de-marca-c438b6ded9024c3485e7e574f60ffc0b|📔 Manual de marca>" } },
       { type: "divider" },
       { type: "context", elements: [{ type: "mrkdwn", text: "Escribime en el chat de mensajes directo 💬" }] }
     ]
@@ -297,7 +331,7 @@ async function publishHomeTab(userId) {
   console.log("publishHomeTab result:", result.status, JSON.stringify(result.body).slice(0, 200));
 }
 
-// ─── EVENTS ─────────────────────────────────────────────────────────────────────────────────────────────
+// ─── EVENTS ───────────────────────────────────────────────────────────────────
 app.post("/slack/events", async (req, res) => {
   const body = req.body;
 
@@ -359,7 +393,7 @@ app.post("/slack/events", async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => res.send("tapi design bot v13 — vision via llama-3.2-90b base64 + text fallback"));
+app.get("/", (req, res) => res.send("tapi design bot v14 (TapBot) — vision via llama-3.2-90b base64 + text fallback"));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log(`Server running on port ${PORT}`); });
